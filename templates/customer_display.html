@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang() }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Moon Gallery &amp; Studio</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f7f5ef; color: #18181b; position: fixed; inset: 0; }
+    .page { height: 100dvh; max-height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 16px; gap: 12px; overflow: hidden; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: clamp(24px, 3.4vw, 46px); letter-spacing: 0; text-transform: lowercase; }
+    .status { color: #52525b; font-size: clamp(13px, 1.7vw, 20px); }
+    .language-switch { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lang-link { padding: 8px 10px; border-radius: 8px; color: #27272a; background: #e7e5df; text-decoration: none; font-weight: 700; }
+    .lang-link.active { background: #111111; color: #ffffff; }
+    .content { min-height: 0; display: grid; grid-template-columns: minmax(230px, 0.36fr) minmax(0, 0.64fr); gap: 12px; }
+    .brand-panel { min-height: 0; background: #ffffff; border: 1px solid #dedbd2; border-radius: 8px; display: grid; align-items: center; padding: 18px; overflow: hidden; }
+    .brand-logo { width: 100%; max-width: 420px; max-height: 100%; object-fit: contain; justify-self: center; }
+    .display { min-height: 0; background: #ffffff; border: 1px solid #dedbd2; border-radius: 8px; overflow: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: clamp(8px, 1.35vw, 18px); border-bottom: 1px solid #e4e1d8; text-align: left; }
+    th { position: sticky; top: 0; z-index: 1; color: #52525b; font-size: clamp(13px, 1.6vw, 20px); background: #f0eee7; }
+    td { font-size: clamp(16px, 2.2vw, 28px); }
+    tr:last-child td { border-bottom: none; }
+    .item-cell { display: grid; grid-template-columns: clamp(44px, 6vw, 76px) 1fr; gap: 12px; align-items: center; }
+    .item-image { width: clamp(44px, 6vw, 76px); aspect-ratio: 1; border: 1px solid #e4e1d8; border-radius: 8px; object-fit: cover; background: #ffffff; }
+    .item-name { font-weight: 800; }
+    .qty, .price, .subtotal { text-align: right; white-space: nowrap; }
+    .empty { height: 100%; min-height: 0; display: grid; place-items: center; padding: 18px; }
+    .idle-logo { width: min(58%, 420px); max-height: 82%; object-fit: contain; }
+    .totalbar { display: flex; align-items: end; justify-content: space-between; gap: 16px; background: #ffffff; border: 1px solid #dedbd2; border-radius: 8px; padding: clamp(12px, 2vw, 24px); color: #111111; }
+    .total-label { color: #52525b; font-size: clamp(24px, 3vw, 42px); font-weight: 900; }
+    .total-value { color: #111111; font-size: clamp(38px, 6.5vw, 82px); font-weight: 900; line-height: 0.95; }
+    .paid { color: #15803d; font-weight: 800; }
+    .complete-panel {
+      min-height: 100%;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 18px;
+      background: #ffffff;
+      padding: clamp(28px, 5vw, 54px);
+    }
+    .checkmark {
+      width: clamp(76px, 12vw, 132px);
+      height: clamp(76px, 12vw, 132px);
+      border-radius: 999px;
+      border: 8px solid #111111;
+      position: relative;
+    }
+    .checkmark::after {
+      content: "";
+      position: absolute;
+      left: 28%;
+      top: 48%;
+      width: 42%;
+      height: 22%;
+      border-left: 8px solid #111111;
+      border-bottom: 8px solid #111111;
+      transform: rotate(-45deg) scale(0);
+      transform-origin: left bottom;
+    }
+    .complete-panel.show .checkmark::after {
+      animation: drawCheck 420ms ease 120ms forwards;
+    }
+    .complete-title { font-size: clamp(30px, 5vw, 72px); font-weight: 900; letter-spacing: 0; text-align: center; }
+    .complete-subtitle { font-size: clamp(24px, 4vw, 56px); font-weight: 900; letter-spacing: 0; text-align: center; color: #52525b; }
+    @keyframes drawCheck {
+      to { transform: rotate(-45deg) scale(1); }
+    }
+    @media (max-width: 720px) {
+      .page { padding: 10px; gap: 8px; }
+      .topbar { align-items: stretch; flex-direction: column; gap: 8px; }
+      .content { grid-template-columns: 1fr; grid-template-rows: minmax(110px, 0.28fr) minmax(0, 0.72fr); }
+      .brand-panel { grid-template-columns: auto 1fr; grid-template-rows: 1fr; gap: 12px; padding: 10px; }
+      .brand-logo { width: auto; height: 100%; max-width: 120px; }
+      th:nth-child(2), td:nth-child(2) { display: none; }
+      .totalbar { align-items: center; flex-direction: row; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1>Moon Gallery &amp; Studio</h1>
+        <div id="displayStatus" class="status"></div>
+      </div>
+      {{ language_switch() }}
+    </header>
+
+    <main class="content">
+      <section class="brand-panel" aria-label="Moon Gallery & Studio">
+        <img class="brand-logo" src="/static/logo.jpg" alt="Moon Gallery & Studio">
+      </section>
+
+      <section class="display">
+        <table id="displayTable" hidden>
+          <thead>
+            <tr>
+              <th>{{ t('product_name') }}</th>
+              <th class="price">{{ t('price') }}</th>
+              <th class="qty">{{ t('qty') }}</th>
+              <th class="subtotal">{{ t('subtotal') }}</th>
+            </tr>
+          </thead>
+          <tbody id="displayBody"></tbody>
+        </table>
+        <div id="completeState" class="complete-panel" hidden>
+          <div class="checkmark" aria-hidden="true"></div>
+          <div class="complete-title">{{ t('checkout_complete') }}</div>
+          <div class="complete-subtitle">{{ t('thank_you') }}</div>
+        </div>
+        <div id="emptyState" class="empty">
+          <img class="idle-logo" src="/static/logo.jpg" alt="Moon Gallery & Studio">
+        </div>
+      </section>
+    </main>
+
+    <footer class="totalbar">
+      <div>
+        <div class="total-label">{{ t('total') }}</div>
+      </div>
+      <div class="total-value">¥<span id="displayTotal">0</span></div>
+    </footer>
+  </div>
+
+  <script>
+    let completeTimer = null;
+    let activeCheckoutKey = null;
+    let dismissedCheckoutKey = null;
+    let lastPayloadKey = null;
+    let audioContext = null;
+
+    function getAudioContext() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+      if (!audioContext) audioContext = new AudioContextClass();
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+      }
+      return audioContext;
+    }
+
+    function playCheckoutSound() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const start = ctx.currentTime + 0.01;
+      [
+        { freq: 783.99, at: 0, duration: 0.12, volume: 0.13 },
+        { freq: 1046.5, at: 0.12, duration: 0.14, volume: 0.15 },
+        { freq: 1318.51, at: 0.26, duration: 0.2, volume: 0.16 },
+      ].forEach((note) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(note.freq, start + note.at);
+        gain.gain.setValueAtTime(0.0001, start + note.at);
+        gain.gain.exponentialRampToValueAtTime(note.volume, start + note.at + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + note.at + note.duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start + note.at);
+        osc.stop(start + note.at + note.duration + 0.03);
+      });
+    }
+
+    function formatJpy(value) {
+      return String(Math.round(Number(value) || 0));
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderDisplay(data) {
+      const items = data.items || [];
+      const isPaid = data.status === 'paid';
+      const checkoutKey = data.checkout_id || data.updated_at || 'paid';
+      const paidDismissed = isPaid && dismissedCheckoutKey === checkoutKey;
+      const showComplete = isPaid && !paidDismissed;
+      const showTable = !isPaid && items.length > 0;
+      const showIdle = (!isPaid && items.length === 0) || paidDismissed;
+      const payloadKey = JSON.stringify({
+        status: data.status,
+        checkoutKey,
+        paidDismissed,
+        total: data.total,
+        items: items.map((item) => ({
+          barcode: item.barcode,
+          name: item.name,
+          price: item.price,
+          qty: item.qty,
+          subtotal: item.subtotal,
+          image: item.image || '',
+          image_url: item.image_url || '',
+        })),
+      });
+      if (payloadKey === lastPayloadKey) return;
+      lastPayloadKey = payloadKey;
+
+      const table = document.getElementById('displayTable');
+      const body = document.getElementById('displayBody');
+      const empty = document.getElementById('emptyState');
+      const complete = document.getElementById('completeState');
+      const status = document.getElementById('displayStatus');
+      const total = document.getElementById('displayTotal');
+
+      body.innerHTML = '';
+      if (!isPaid) {
+        clearTimeout(completeTimer);
+        completeTimer = null;
+        activeCheckoutKey = null;
+        complete.hidden = true;
+        complete.classList.remove('show');
+      }
+      table.hidden = !showTable;
+      empty.hidden = !showIdle;
+      if (showComplete) {
+        complete.hidden = false;
+        complete.classList.toggle('show', activeCheckoutKey !== checkoutKey);
+      } else {
+        complete.hidden = true;
+        complete.classList.remove('show');
+      }
+
+      for (const item of items) {
+        const row = document.createElement('tr');
+        const imageSrc = item.image_url || '/static/logo.jpg';
+        row.innerHTML = `
+          <td>
+            <div class="item-cell">
+              <img class="item-image" src="${escapeHtml(imageSrc)}" alt="" onerror="this.onerror=null;this.src='/static/logo.jpg';">
+              <span class="item-name">${escapeHtml(item.name)}</span>
+            </div>
+          </td>
+          <td class="price">¥${formatJpy(item.price)}</td>
+          <td class="qty">${item.qty}</td>
+          <td class="subtotal">¥${formatJpy(item.subtotal)}</td>
+        `;
+        body.appendChild(row);
+      }
+
+      total.textContent = paidDismissed ? '0' : formatJpy(data.total);
+      status.textContent = '';
+      status.className = 'status';
+
+      if (showComplete && activeCheckoutKey !== checkoutKey) {
+        activeCheckoutKey = checkoutKey;
+        playCheckoutSound();
+        clearTimeout(completeTimer);
+        completeTimer = setTimeout(() => {
+          complete.hidden = true;
+          complete.classList.remove('show');
+          table.hidden = true;
+          empty.hidden = false;
+          body.innerHTML = '';
+          total.textContent = '0';
+          dismissedCheckoutKey = checkoutKey;
+          lastPayloadKey = null;
+          completeTimer = null;
+        }, 5000);
+      }
+    }
+
+    async function refreshDisplay() {
+      try {
+        const response = await fetch('/api/customer-display', { cache: 'no-store' });
+        if (!response.ok) return;
+        renderDisplay(await response.json());
+      } catch (error) {
+        console.warn('customer display refresh failed', error);
+      }
+    }
+
+    refreshDisplay();
+    setInterval(refreshDisplay, 300);
+  </script>
+</body>
+</html>

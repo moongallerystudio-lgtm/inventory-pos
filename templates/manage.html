@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang() }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{{ t('inventory') }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha512-oHDEc8Xedv6gH6p9YxQpggD3Elo+urV7rV4p5A2aYW+Lmzl0QWvssQeCNSi82im5UwG2bKrw0P5VxE5QxQ3s6g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; overflow-x: hidden; }
+    body { font-family: Arial, sans-serif; background: #f5f7fa; color: #1f2937; margin: 0; }
+    .page { width: 100%; max-width: 100vw; min-height: 100vh; padding: 18px; overflow-x: hidden; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    h1, h2 { margin: 0; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 18px; }
+    .panel { min-width: 0; background: #fff; border: 1px solid #dde5ee; border-radius: 8px; padding: 16px; box-shadow: 0 1px 8px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 18px; border-radius: 8px; text-decoration: none; color: #fff; background: #2563eb; border: none; cursor: pointer; font-weight: 700; font-size: 16px; white-space: nowrap; }
+    .button.red { background: #dc2626; }
+    .button.green { background: #16a34a; }
+    .button.gray { background: #475569; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .form-row label { display: flex; flex-direction: column; font-weight: 600; }
+    .search-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+    .search-row label { display: flex; flex-direction: column; font-weight: 600; }
+    input[type=text], input[type=number], input[type=file], input[type=search] { width: 100%; min-height: 52px; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: #fff; }
+    .table-wrap { min-width: 0; overflow-x: auto; margin-top: 12px; border: 1px solid #dde5ee; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+    .inventory-table-wrap { max-height: 925px; overflow: auto; }
+    table { width: 100%; min-width: 720px; border-collapse: collapse; }
+    th, td { padding: 12px; border-bottom: 1px solid #e5eaf0; text-align: left; vertical-align: middle; }
+    th { background: #f1f5f9; color: #334155; font-size: 14px; }
+    .inventory-table-wrap th { position: sticky; top: 0; z-index: 1; }
+    tr:last-child td { border-bottom: none; }
+    .product-image { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #eef2f7; }
+    .alert { padding: 12px 16px; margin-bottom: 16px; border-radius: 8px; }
+    .alert.error { background: #ffe2e6; color: #9a161b; }
+    .alert.success { background: #e7f8ed; color: #1f6b2f; }
+    .language-switch { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lang-link { padding: 8px 10px; border-radius: 8px; color: #1f2937; background: #eef2f7; text-decoration: none; font-weight: 700; }
+    .lang-link.active { background: #2563eb; color: #fff; }
+    #videoWrapper { display: none; margin-top: 12px; }
+    video { width: 100%; max-height: 360px; border-radius: 8px; background: #111827; }
+    @media (max-width: 760px) {
+      .page { padding: 8px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .topbar > div, .language-switch { width: 100%; }
+      .lang-link { flex: 1; text-align: center; }
+      .panel { padding: 12px; }
+      h1 { font-size: 24px; }
+      .toolbar { width: 100%; }
+      .form-row, .search-row { grid-template-columns: 1fr; }
+      .button { width: 100%; }
+      .inventory-table-wrap { max-height: 685px; }
+      table { min-width: 0; table-layout: fixed; }
+      th, td { padding: 8px 6px; font-size: 13px; word-break: break-word; }
+      th { font-size: 12px; }
+      .product-image { width: 48px; height: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <h1>{{ t('inventory') }}</h1>
+      <div class="toolbar">
+        {{ language_switch() }}
+        <a class="button gray" href="/">{{ t('home') }}</a>
+        <button type="button" class="button green" onclick="startScan('barcode')">{{ t('start_scan') }}</button>
+      </div>
+    </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      <div class="panel">
+        <h2>{{ t('edit_product') }}</h2>
+        <form method="post" action="/manage/add" enctype="multipart/form-data">
+          <div class="form-row">
+            <label>{{ t('barcode') }}<input type="text" name="barcode" id="barcode" placeholder="6901234567890" required></label>
+            <label>{{ t('product_name') }}<input type="text" name="name" placeholder="{{ t('product_name') }}" required></label>
+            <label>{{ t('price') }}<input type="number" name="price" step="1" placeholder="120" required></label>
+            <label>{{ t('stock') }}<input type="number" name="stock" step="1" placeholder="100" required></label>
+          </div>
+          <div class="form-row">
+            <label>{{ t('image') }}<input type="file" name="image" accept="image/*"></label>
+          </div>
+          <button class="button" type="submit">{{ t('save_product') }}</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>{{ t('import_export') }}</h2>
+        <p>{{ t('import_export_hint') }}</p>
+        <form method="post" action="/manage/import" enctype="multipart/form-data" style="margin-bottom: 16px;">
+          <div class="form-row">
+            <label>{{ t('choose_file') }}<input type="file" name="inventory_file" accept=".csv,.xlsx"></label>
+            <button class="button" type="submit">{{ t('import_inventory') }}</button>
+          </div>
+        </form>
+        <p>
+          <a class="button" href="/manage/export/csv">{{ t('export_csv') }}</a>
+          <a class="button" href="/manage/export/xlsx">{{ t('export_excel') }}</a>
+        </p>
+      </div>
+      <div class="panel">
+        <h2>{{ t('current_inventory') }}</h2>
+        <div class="search-row">
+          <label>{{ t('product_search') }}<input id="inventorySearch" type="search" autocomplete="off" placeholder="{{ t('product_search_placeholder') }}"></label>
+          <button class="button gray" type="button" id="clearInventorySearch">{{ t('clear') }}</button>
+        </div>
+        <div class="table-wrap inventory-table-wrap">
+          <table>
+            <thead>
+              <tr><th>{{ t('barcode') }}</th><th>{{ t('product') }}</th><th>{{ t('image') }}</th><th>{{ t('price') }}</th><th>{{ t('stock') }}</th><th>{{ t('action') }}</th></tr>
+            </thead>
+            <tbody id="inventoryTableBody">
+              {% for product in inventory %}
+                <tr class="inventory-row" data-search="{{ (product.name ~ ' ' ~ product.barcode)|lower }}">
+                  <td>{{ product.barcode }}</td>
+                  <td>{{ product.name }}</td>
+                  <td>{% if product.image_url %}<img class="product-image" src="{{ product.image_url }}" alt="{{ product.name }}" onerror="this.onerror=null;this.src='/static/logo.jpg';">{% else %}-{% endif %}</td>
+                  <td>¥{{ product.price|jpy }}</td>
+                  <td>{{ product.stock }}</td>
+                  <td>
+                    <form method="post" action="/manage/delete/{{ product.barcode }}" style="display:inline;" onsubmit="return confirm('确认删除？');">
+                      <button class="button red" type="submit">{{ t('delete') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% else %}
+                <tr class="inventory-empty-row"><td colspan="6">{{ t('no_products') }}</td></tr>
+              {% endfor %}
+              <tr id="inventoryNoMatchRow" style="display:none;"><td colspan="6">{{ t('no_products_found') }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="videoWrapper" class="panel">
+        <h2>{{ t('scanner') }}</h2>
+        <video id="scanVideo" playsinline muted></video>
+        <div style="margin-top:12px;">
+          <button type="button" class="button red" onclick="stopScan()">{{ t('stop_scan') }}</button>
+        </div>
+      </div>
+  </div>
+  <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
+  <script src="/static/main.js"></script>
+</body>
+</html>
+<!-- Quagga fallback loaded before main.js when BarcodeDetector isn't available on mobile -->
