@@ -13,6 +13,11 @@ from datetime import datetime, time
 from zoneinfo import ZoneInfo
 import openpyxl
 from markupsafe import Markup
+try:
+    from PIL import Image, ImageOps
+except ImportError:
+    Image = None
+    ImageOps = None
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-for-production")
@@ -21,6 +26,8 @@ BASE = Path(__file__).resolve().parent
 UPLOADS_DIR = BASE / "static" / "uploads"
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif"}
 APP_TIMEZONE = ZoneInfo(os.environ.get("APP_TIMEZONE", "Asia/Tokyo"))
+PRODUCT_IMAGE_MAX_SIZE = (1200, 1200)
+PRODUCT_IMAGE_QUALITY = 78
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
@@ -54,6 +61,7 @@ TRANSLATIONS = {
         "stop_scan": "停止扫码",
         "add": "加入",
         "save": "保存",
+        "edit": "编辑",
         "delete": "删除",
         "remove": "移除",
         "checkout": "结账",
@@ -112,6 +120,9 @@ TRANSLATIONS = {
         "delete_sale_confirm": "确认删除这张销售单？库存会自动加回。",
         "sale_deleted": "销售单已删除，库存已恢复",
         "sale_not_found": "未找到销售单",
+        "delete_product_confirm": "确认删除这个商品？",
+        "delete_member_confirm": "确认删除这个会员？",
+        "remove_item_confirm": "确认从购物车移除这个商品？",
         "new_member": "新增会员",
         "member_list": "会员列表",
         "member_name": "会员姓名",
@@ -152,6 +163,7 @@ TRANSLATIONS = {
         "stop_scan": "Stop Scan",
         "add": "Add",
         "save": "Save",
+        "edit": "Edit",
         "delete": "Delete",
         "remove": "Remove",
         "checkout": "Checkout",
@@ -210,6 +222,9 @@ TRANSLATIONS = {
         "delete_sale_confirm": "Delete this sale? Stock will be restored.",
         "sale_deleted": "Sale deleted and stock restored",
         "sale_not_found": "Sale not found",
+        "delete_product_confirm": "Delete this product?",
+        "delete_member_confirm": "Delete this member?",
+        "remove_item_confirm": "Remove this item from the cart?",
         "new_member": "New Member",
         "member_list": "Member List",
         "member_name": "Member Name",
@@ -250,6 +265,7 @@ TRANSLATIONS = {
         "stop_scan": "スキャン停止",
         "add": "追加",
         "save": "保存",
+        "edit": "編集",
         "delete": "削除",
         "remove": "削除",
         "checkout": "会計",
@@ -308,6 +324,9 @@ TRANSLATIONS = {
         "delete_sale_confirm": "この売上を削除しますか？在庫は自動で戻ります。",
         "sale_deleted": "売上を削除し、在庫を戻しました",
         "sale_not_found": "売上が見つかりません",
+        "delete_product_confirm": "この商品を削除しますか？",
+        "delete_member_confirm": "この会員を削除しますか？",
+        "remove_item_confirm": "この商品をカートから削除しますか？",
         "new_member": "新規会員",
         "member_list": "会員一覧",
         "member_name": "会員名",
@@ -566,6 +585,35 @@ def allowed_image(filename):
     return suffix in ALLOWED_IMAGE_EXTENSIONS
 
 
+def compress_product_image(image_bytes, fallback_mime="image/jpeg"):
+    if not image_bytes or Image is None:
+        return image_bytes, fallback_mime
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            image = ImageOps.exif_transpose(image)
+            resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+            image.thumbnail(PRODUCT_IMAGE_MAX_SIZE, resample)
+            if image.mode in {"RGBA", "LA"} or (image.mode == "P" and "transparency" in image.info):
+                background = Image.new("RGB", image.size, (255, 255, 255))
+                alpha = image.convert("RGBA").getchannel("A")
+                background.paste(image.convert("RGBA"), mask=alpha)
+                image = background
+            else:
+                image = image.convert("RGB")
+
+            output = io.BytesIO()
+            image.save(
+                output,
+                format="JPEG",
+                quality=PRODUCT_IMAGE_QUALITY,
+                optimize=True,
+                progressive=True,
+            )
+            return output.getvalue(), "image/jpeg"
+    except Exception:
+        return image_bytes, fallback_mime
+
+
 def save_image_file(file_storage, barcode):
     if not file_storage:
         return None
@@ -594,8 +642,11 @@ def save_product_image(file_storage, barcode):
     image_bytes = file_storage.read()
     if not image_bytes:
         return None
+    original_mime = file_storage.mimetype or mimetypes.guess_type(filename)[0] or "image/jpeg"
+    image_bytes, image_mime = compress_product_image(image_bytes, original_mime)
     ensure_directories()
-    target_name = f"{secure_filename(barcode)}{suffix}"
+    target_suffix = ".jpg" if image_mime == "image/jpeg" else suffix
+    target_name = f"{secure_filename(barcode)}{target_suffix}"
     target_path = UPLOADS_DIR / target_name
     try:
         target_path.write_bytes(image_bytes)
@@ -604,7 +655,7 @@ def save_product_image(file_storage, barcode):
     return {
         "path": f"uploads/{target_name}",
         "data": image_bytes,
-        "mime": file_storage.mimetype or "image/jpeg",
+        "mime": image_mime,
     }
 
 
@@ -885,7 +936,9 @@ def product_image(barcode):
 @app.route("/manage")
 def manage():
     inventory = load_inventory()
-    return render_template("manage.html", inventory=inventory)
+    edit_barcode = request.args.get("edit", "").strip()
+    edit_product = find_product(edit_barcode) if edit_barcode else None
+    return render_template("manage.html", inventory=inventory, edit_product=edit_product)
 
 
 @app.route("/manage/add", methods=["POST"])

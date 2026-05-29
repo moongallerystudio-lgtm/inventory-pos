@@ -654,6 +654,7 @@ function updateCartTable(items, total) {
 }
 
 async function changeCartQty(barcode, qty) {
+  if (qty <= 0 && !confirm(tr('removeItemConfirm', '确认从购物车移除这个商品？'))) return;
   const resultEl = document.getElementById('scanResult');
   const response = await fetch(`/api/cashier/cart/${encodeURIComponent(barcode)}`, {
     method: 'PATCH',
@@ -726,6 +727,36 @@ function filterInventoryTable() {
   }
 }
 
+function resetInventoryProductForm() {
+  const form = document.getElementById('productForm');
+  const barcodeInput = document.getElementById('barcode');
+  if (form) form.reset();
+  if (barcodeInput) {
+    barcodeInput.readOnly = false;
+    barcodeInput.focus();
+  }
+}
+
+function editInventoryProduct(barcode, name, price, stock) {
+  const barcodeInput = document.getElementById('barcode');
+  const nameInput = document.getElementById('productName');
+  const priceInput = document.getElementById('productPrice');
+  const stockInput = document.getElementById('productStock');
+  const imageInput = document.getElementById('productImage');
+  const formPanel = document.getElementById('productFormPanel');
+
+  if (barcodeInput) {
+    barcodeInput.value = barcode;
+    barcodeInput.readOnly = true;
+  }
+  if (nameInput) nameInput.value = name;
+  if (priceInput) priceInput.value = formatJpy(price);
+  if (stockInput) stockInput.value = stock;
+  if (imageInput) imageInput.value = '';
+  if (formPanel) formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (nameInput) nameInput.focus();
+}
+
 async function searchProducts() {
   const input = document.getElementById('productSearch');
   const status = document.getElementById('productSearchStatus');
@@ -749,6 +780,7 @@ async function addProductByBarcode(barcode) {
 }
 
 async function removeCartItem(barcode) {
+  if (!confirm(tr('removeItemConfirm', '确认从购物车移除这个商品？'))) return;
   const resultEl = document.getElementById('scanResult');
   const response = await fetch(`/api/cashier/cart/${encodeURIComponent(barcode)}`, {
     method: 'DELETE',
@@ -959,5 +991,10 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       filterInventoryTable();
     });
+  }
+
+  const resetProductForm = document.getElementById('resetProductForm');
+  if (resetProductForm) {
+    resetProductForm.addEventListener('click', resetInventoryProductForm);
   }
 });
