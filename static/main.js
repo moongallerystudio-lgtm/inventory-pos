@@ -61,6 +61,120 @@ function tr(key, fallback, params = {}) {
   return text;
 }
 
+function ensureConfirmModal() {
+  let modal = document.getElementById('confirmModal');
+  if (modal) return modal;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .confirm-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.52);
+    }
+    .confirm-modal-backdrop.is-open { display: flex; }
+    .confirm-modal {
+      width: min(420px, 100%);
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26);
+      padding: 18px;
+      color: #1f2937;
+    }
+    .confirm-modal-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .confirm-modal-message {
+      margin: 0;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .confirm-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .confirm-modal-actions .button { min-height: 44px; }
+    @media (max-width: 760px) {
+      .confirm-modal-actions { flex-direction: column-reverse; }
+      .confirm-modal-actions .button { width: 100%; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  modal = document.createElement('div');
+  modal.id = 'confirmModal';
+  modal.className = 'confirm-modal-backdrop';
+  modal.innerHTML = `
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMessage">
+      <h2 id="confirmModalTitle" class="confirm-modal-title"></h2>
+      <p id="confirmModalMessage" class="confirm-modal-message"></p>
+      <div class="confirm-modal-actions">
+        <button class="button gray" type="button" data-confirm-cancel></button>
+        <button class="button red" type="button" data-confirm-ok></button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function showConfirmDialog(message, options = {}) {
+  return new Promise((resolve) => {
+    const modal = ensureConfirmModal();
+    const titleEl = modal.querySelector('#confirmModalTitle');
+    const messageEl = modal.querySelector('#confirmModalMessage');
+    const cancelButton = modal.querySelector('[data-confirm-cancel]');
+    const okButton = modal.querySelector('[data-confirm-ok]');
+    const title = options.title || tr('confirmTitle', '二次确认');
+    const okText = options.okText || tr('confirmAction', '确认操作');
+    const cancelText = options.cancelText || tr('confirmCancel', '取消');
+    let resolved = false;
+
+    function close(value) {
+      if (resolved) return;
+      resolved = true;
+      modal.classList.remove('is-open');
+      document.removeEventListener('keydown', handleKeydown);
+      cancelButton.removeEventListener('click', cancelHandler);
+      okButton.removeEventListener('click', okHandler);
+      modal.removeEventListener('click', backdropHandler);
+      resolve(value);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === 'Escape') close(false);
+    }
+
+    function backdropHandler(event) {
+      if (event.target === modal) close(false);
+    }
+
+    const cancelHandler = () => close(false);
+    const okHandler = () => close(true);
+
+    titleEl.textContent = title;
+    messageEl.textContent = message || tr('confirmTitle', '二次确认');
+    cancelButton.textContent = cancelText;
+    okButton.textContent = okText;
+    cancelButton.addEventListener('click', cancelHandler);
+    okButton.addEventListener('click', okHandler);
+    modal.addEventListener('click', backdropHandler);
+    document.addEventListener('keydown', handleKeydown);
+    modal.classList.add('is-open');
+    cancelButton.focus();
+  });
+}
+
 function formatJpy(value) {
   return String(Math.round(Number(value) || 0));
 }
@@ -654,7 +768,7 @@ function updateCartTable(items, total) {
 }
 
 async function changeCartQty(barcode, qty) {
-  if (qty <= 0 && !confirm(tr('removeItemConfirm', '确认从购物车移除这个商品？'))) return;
+  if (qty <= 0 && !(await showConfirmDialog(tr('removeItemConfirm', '确认从购物车移除这个商品？')))) return;
   const resultEl = document.getElementById('scanResult');
   const response = await fetch(`/api/cashier/cart/${encodeURIComponent(barcode)}`, {
     method: 'PATCH',
@@ -780,7 +894,7 @@ async function addProductByBarcode(barcode) {
 }
 
 async function removeCartItem(barcode) {
-  if (!confirm(tr('removeItemConfirm', '确认从购物车移除这个商品？'))) return;
+  if (!(await showConfirmDialog(tr('removeItemConfirm', '确认从购物车移除这个商品？')))) return;
   const resultEl = document.getElementById('scanResult');
   const response = await fetch(`/api/cashier/cart/${encodeURIComponent(barcode)}`, {
     method: 'DELETE',
@@ -996,5 +1110,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const resetProductForm = document.getElementById('resetProductForm');
   if (resetProductForm) {
     resetProductForm.addEventListener('click', resetInventoryProductForm);
+  }
+
+  for (const form of document.querySelectorAll('form[data-confirm-message]')) {
+    form.addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const confirmed = await showConfirmDialog(form.dataset.confirmMessage || '');
+      if (confirmed) form.submit();
+    });
   }
 });

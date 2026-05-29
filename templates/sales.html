@@ -136,7 +136,7 @@
                 {% if row.item_index == 0 %}
                   <td rowspan="{{ row.item_count }}">¥{{ row.order_payable|jpy }}</td>
                   <td rowspan="{{ row.item_count }}">
-                    <form method="post" action="/sales/delete/{{ row.sale_id }}" onsubmit="return confirm({{ t('delete_sale_confirm')|tojson }});">
+                    <form method="post" action="/sales/delete/{{ row.sale_id }}" data-confirm-message="{{ t('delete_sale_confirm') }}">
                       <input type="hidden" name="date" value="{{ report_date }}">
                       <button class="button red" type="submit">{{ t('delete') }}</button>
                     </form>
@@ -151,5 +151,13 @@
       </div>
     </div>
   </div>
+  <script>
+    window.APP_I18N = Object.assign(window.APP_I18N || {}, {
+      confirmTitle: {{ t('confirm_delete_title')|tojson }},
+      confirmAction: {{ t('confirm_action')|tojson }},
+      confirmCancel: {{ t('cancel')|tojson }}
+    });
+  </script>
+  <script src="/static/main.js?v=20260529-confirm-modal"></script>
 </body>
 </html>
